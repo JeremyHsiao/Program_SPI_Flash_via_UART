@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "N575.h"
+#include "uart_app.h"
+#include "buffer.h"
 
 /* Buffer size, this buffer for uart receive & send data. */
 #define UART_BUF_SIZE      64
@@ -51,24 +53,33 @@ void SYS_Init(void)
 /* Main */
 int main(void)
 {
-	uint8_t u8Buffer[UART_BUF_SIZE];
+//	uint8_t u8Buffer[UART_BUF_SIZE];
 	
     /* Init System, IP clock and multi-function I/O */
     SYS_Init();
 
+    UART_init();
     /* Init UART to 115200-8n1 for print message */
     UART_Open(UART0, 115200);
-
-    printf("\n+------------------------------------------------------------------------+\n");
-    printf("|                      N575 Uart Demo Sample                             |\n");
-    printf("+------------------------------------------------------------------------+\n");
-	printf("Press any key to test.\n");
+    Initialize_buffer();
+        
+    OutputString_with_newline("\r\n+------------------------------------------------------------------------+\r");
+    OutputString_with_newline("|                      N575 Uart Demo Sample                             |\r");
+    OutputString_with_newline("+------------------------------------------------------------------------+\r");
+	OutputString_with_newline("Press any key to test.\r");
 	
 	while(1)
 	{
-		memset( u8Buffer, '\0', sizeof(u8Buffer) );
-		if( UART_Read( UART0, u8Buffer, sizeof(u8Buffer) ) > 0 )
-			UART_Write( UART0, u8Buffer, sizeof(u8Buffer) );
+//		memset( u8Buffer, '\0', sizeof(u8Buffer) );
+//		if( UART_Read( UART0, u8Buffer, sizeof(u8Buffer) ) > 0 )
+//			UART_Write( UART0, u8Buffer, sizeof(u8Buffer) );
+        
+        if(!uart_input_queue_empty_status())
+        {
+            uint8_t input_ch;
+            input_ch = uart_input_dequeue();
+            while(uart_output_enqueue(input_ch)==0) {}
+        }
 	}
 }
 
