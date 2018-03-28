@@ -58,10 +58,9 @@ int main(void)
     /* Init System, IP clock and multi-function I/O */
     SYS_Init();
 
+    Initialize_buffer();
     UART_init();
     /* Init UART to 115200-8n1 for print message */
-    UART_Open(UART0, 115200);
-    Initialize_buffer();
         
     OutputString_with_newline("\r\n+------------------------------------------------------------------------+\r");
     OutputString_with_newline("|                      N575 Uart Demo Sample                             |\r");

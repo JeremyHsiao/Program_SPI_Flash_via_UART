@@ -117,7 +117,7 @@ void UART0_IRQHandler(void)
     while(!(UART0->FIFOSTS & UART_FIFOSTS_TXFULL_Msk));   /* If Tx is not full */
   }
   // Rx when FIFO is ready - interrupt occurs more than using FIFO is full so that we can prevent IRQ blocking causiing FIFO data overwritten
-	if(UART_IS_RX_READY(UART0))
+  if(UART_IS_RX_READY(UART0))
   {
     while(!(UART0->FIFOSTS & UART_FIFOSTS_RXEMPTY_Msk))
     {
@@ -130,13 +130,13 @@ void UART0_IRQHandler(void)
         break;
       }
     }
-	}
+  }
 }
 
 void UART_init(void)
 {
   //CLK_EnableModuleClock(UART_MODULE);
-	//UART_Open(UART0, 115200);
+	UART_Open(UART0, 115200);
 	UART0->INTEN |= UART_INTEN_RDAIEN_Msk;
   //UART0->INTEN |= UART_INTEN_THREIEN_Msk;
 	NVIC_EnableIRQ(UART0_IRQn);

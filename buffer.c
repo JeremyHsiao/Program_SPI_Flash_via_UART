@@ -17,7 +17,7 @@
 
 // helper function
 // Clear Buffer
-#define BUF_CLEAR(WRITE_PTR, REAR_PTR, BUFFER_START_PTR, STATUS_BIT) {  WRITE_PTR=BUFFER_START_PTR; REAR_PTR=BUFFER_START_PTR; STATUS_BIT=0; }
+#define BUF_CLEAR(WRITE_PTR, REAR_PTR, BUFFER_START_PTR) {  WRITE_PTR=BUFFER_START_PTR; REAR_PTR=BUFFER_START_PTR; }
 // Increase Ring Buffer Pointer by 1 and back to buffer starting point when out of bound
 #define BUF_PTR_INCREASE(PTR, BUFFER_START_PTR, BUFFER_SIZE)                        \
     {                                                                               \
@@ -27,37 +27,6 @@
           PTR = BUFFER_START_PTR;                                                   \
         }                                                                           \
     }
-// Check if Rx Buffer is full and not able to insert more at this moment
-#define BUF_FULL_CHECK(WRITE_PTR, REAR_PTR, BUF_SIZE, STATUS_BIT)                             \
-    {                                                                               \
-      if(REAR_PTR>WRITE_PTR)     /* ....write.....rear..... */                      \
-      {                                                                             \
-        if((WRITE_PTR+1)==REAR_PTR)                                                 \
-        {                                                                           \
-          STATUS_BIT = 1;                                                           \
-        }                                                                           \
-        else                                                                        \
-        {                                                                           \
-          STATUS_BIT = 0;                                                           \
-        }                                                                           \
-      }                                                                             \
-      else if(WRITE_PTR>REAR_PTR)     /* ....rear.....write.....*/                  \
-      {                                                                             \
-        if((REAR_PTR+BUF_SIZE-1)==WRITE_PTR)                                   \
-        {                                                                           \
-          STATUS_BIT = 1;                                                           \
-        }                                                                           \
-        else                                                                        \
-        {                                                                           \
-          STATUS_BIT = 0;                                                           \
-        }                                                                           \
-      }                                                                             \
-      else                                                                          \
-      {                                                                             \
-          STATUS_BIT = 0;                                                           \
-      }                                                                             \
-    }
-
 //
 // End of helper function
 //
@@ -74,7 +43,7 @@ uint8_t UART_BUF_RX_FULL = 0;
 uint8_t u8Buffer_TX[UART_TX_BUF_SIZE];
 uint8_t *UART_BUF_TX_WRITE_PTR = u8Buffer_TX;
 uint8_t *UART_BUF_TX_REAR_PTR = u8Buffer_TX;
-uint8_t UART_BUF_TX_FULL = 0;
+//uint8_t UART_BUF_TX_FULL = 0;
 
 //// Store inputing IR data from UART    
 //// IR-Data Array
@@ -111,8 +80,8 @@ uint8_t UART_BUF_TX_FULL = 0;
 
 void Initialize_buffer(void)
 {
-  BUF_CLEAR(UART_BUF_RX_WRITE_PTR, UART_BUF_RX_REAR_PTR, u8Buffer_RX, UART_BUF_RX_FULL);
-  BUF_CLEAR(UART_BUF_TX_WRITE_PTR, UART_BUF_TX_REAR_PTR, u8Buffer_TX, UART_BUF_TX_FULL);
+  BUF_CLEAR(UART_BUF_RX_WRITE_PTR, UART_BUF_RX_REAR_PTR, u8Buffer_RX);
+  BUF_CLEAR(UART_BUF_TX_WRITE_PTR, UART_BUF_TX_REAR_PTR, u8Buffer_TX);
   //Init_IR_buffer();
 }
 
@@ -127,7 +96,23 @@ uint8_t uart_input_queue_empty_status(void)
 
 uint8_t uart_input_queue_full_status(void)
 {
-  return (UART_BUF_RX_FULL);
+    uint8_t *temp_rear_ptr = UART_BUF_RX_REAR_PTR;
+    
+    if (temp_rear_ptr<UART_BUF_RX_WRITE_PTR)
+    {
+        /* ....rear.....write.....*/
+        temp_rear_ptr+=UART_RX_BUF_SIZE;
+        /* .............write.....rear*/
+    }
+    
+    if(UART_BUF_RX_WRITE_PTR==(temp_rear_ptr-1))                                                 
+    {
+        return 1;           // full
+    }
+    else
+    {
+        return 0;           // not-full
+    }
 }
 
 //
@@ -135,17 +120,20 @@ uint8_t uart_input_queue_full_status(void)
 //
 uint8_t uart_input_enqueue(uint8_t input_data)
 {
-  if(!UART_BUF_RX_FULL)  // must check a buffer-full status before an "add"
+  uint8_t   return_value;
+    
+  if(!uart_input_queue_full_status())  // must check a buffer-full status before an "add"
   {
     *UART_BUF_RX_WRITE_PTR = input_data;
     BUF_PTR_INCREASE(UART_BUF_RX_WRITE_PTR,u8Buffer_RX,UART_RX_BUF_SIZE);
-    BUF_FULL_CHECK(UART_BUF_RX_WRITE_PTR,UART_BUF_RX_REAR_PTR,UART_RX_BUF_SIZE,UART_BUF_RX_FULL); // always update buffer-full status at the end of an "add"
-    return TRUE;
+    return_value = TRUE;
   }
   else
   {
-    return FALSE;
+    return_value = FALSE;
   }
+
+  return return_value;
 }
 
 uint8_t uart_input_dequeue(void)
@@ -156,10 +144,9 @@ uint8_t uart_input_dequeue(void)
 
   return_value = *UART_BUF_RX_REAR_PTR;
 
-  if(!(UART_BUF_RX_WRITE_PTR==UART_BUF_RX_REAR_PTR))
+  if(!uart_input_queue_empty_status())
   {
     BUF_PTR_INCREASE(UART_BUF_RX_REAR_PTR,u8Buffer_RX,UART_RX_BUF_SIZE);
-    BUF_FULL_CHECK(UART_BUF_RX_WRITE_PTR,UART_BUF_RX_REAR_PTR,UART_RX_BUF_SIZE,UART_BUF_RX_FULL);  
   }
 
   UART0->INTEN |= UART_INTEN_RDAIEN_Msk;
@@ -170,6 +157,9 @@ uint8_t uart_input_dequeue(void)
 // buffer function for UART-Output
 //
 
+//
+// Please Make sure this function is used when interrupt is disabled (or within ISR)
+//
 uint8_t uart_output_queue_empty_status(void)
 {
   return (UART_BUF_TX_WRITE_PTR==UART_BUF_TX_REAR_PTR)?TRUE:FALSE;
@@ -177,7 +167,23 @@ uint8_t uart_output_queue_empty_status(void)
 
 uint8_t uart_output_queue_full_status(void)
 {
-  return (UART_BUF_TX_FULL);
+    uint8_t *temp_rear_ptr = UART_BUF_TX_REAR_PTR;
+    
+    if (temp_rear_ptr<UART_BUF_TX_WRITE_PTR)
+    {
+        /* ....rear.....write.....*/
+        temp_rear_ptr+=UART_TX_BUF_SIZE;
+        /* .............write.....rear*/
+    }
+    
+    if(UART_BUF_TX_WRITE_PTR==(temp_rear_ptr-1))                                                 
+    {
+        return 1;           // full
+    }
+    else
+    {
+        return 0;           // not-full
+    }
 }
 
 uint8_t uart_output_enqueue(uint8_t input_data)
@@ -187,16 +193,15 @@ uint8_t uart_output_enqueue(uint8_t input_data)
   UART0->INTEN &= ~UART_INTEN_THREIEN_Msk;   // access queue so UART-TX interrupt (where it will dequeue) is disabled temporarily.  
 
   // if output_queue is empty now, we can put data to Tx directly  
-  if((!(UART0->FIFOSTS & UART_FIFOSTS_TXFULL_Msk))&&(uart_output_queue_empty_status()))
+  if((uart_output_queue_empty_status())&&(!(UART0->FIFOSTS & UART_FIFOSTS_TXFULL_Msk)))
   {
     UART0->DAT = input_data;
     bRet = 1;
   } 
-  else if(!UART_BUF_TX_FULL)  // must check a buffer-full status before an "add"
+  else if(!uart_output_queue_full_status())  // must check a buffer-full status before an "add"
   {
     *UART_BUF_TX_WRITE_PTR = input_data;
     BUF_PTR_INCREASE(UART_BUF_TX_WRITE_PTR,u8Buffer_TX,UART_TX_BUF_SIZE);
-    BUF_FULL_CHECK(UART_BUF_TX_WRITE_PTR,UART_BUF_TX_REAR_PTR,UART_TX_BUF_SIZE, UART_BUF_TX_FULL); // always update buffer-full status at the end of an "add"
     bRet = 1;
   }
   else
@@ -234,11 +239,11 @@ uint8_t uart_output_dequeue(void)
   uint8_t   return_value;
 
   return_value = *UART_BUF_TX_REAR_PTR;
-  if(!(UART_BUF_TX_WRITE_PTR==UART_BUF_TX_REAR_PTR))
+  if(!uart_output_queue_empty_status())
   {
     BUF_PTR_INCREASE(UART_BUF_TX_REAR_PTR,u8Buffer_TX,UART_TX_BUF_SIZE);
-    UART_BUF_TX_FULL = FALSE; // Clear buffer-full at the end of a "read"
   }
+
   return return_value;
 }
 
